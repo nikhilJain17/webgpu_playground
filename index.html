@@ -194,21 +194,29 @@ async function runKernel() {
   }
 
   // --- buffers ---
-  const inputData = new Float32Array(N).map((_, i) => i + 1);
+  const inputData1 = new Float32Array(N).map((_, i) => i + 1);
+  const inputData2 = new Float32Array(N).map((_, i) => N - (i + 1));
 
-  const inputBuf = device.createBuffer({
-    size: inputData.byteLength,
+  const inputBuf1 = device.createBuffer({
+    size: inputData1.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
   });
-  device.queue.writeBuffer(inputBuf, 0, inputData);
+
+  const inputBuf2 = device.createBuffer({
+    size: inputData1.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  })
+
+  device.queue.writeBuffer(inputBuf1, 0, inputData1);
+  device.queue.writeBuffer(inputBuf2, 0, inputData2);
 
   const outputBuf = device.createBuffer({
-    size: inputData.byteLength,
+    size: inputData1.byteLength,
     usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
   });
 
   const readBuf = device.createBuffer({
-    size: inputData.byteLength,
+    size: inputData1.byteLength,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
 
@@ -229,8 +237,9 @@ async function runKernel() {
   const bindGroup = device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
     entries: [
-      { binding: 0, resource: { buffer: inputBuf } },
-      { binding: 1, resource: { buffer: outputBuf } },
+      { binding: 0, resource: { buffer: inputBuf1 } },
+      { binding: 1, resource: { buffer: inputBuf2 } },
+      { binding: 2, resource: { buffer: outputBuf } },
     ],
   });
 
@@ -241,7 +250,7 @@ async function runKernel() {
   pass.setBindGroup(0, bindGroup);
   pass.dispatchWorkgroups(Math.ceil(N / 64));
   pass.end();
-  enc.copyBufferToBuffer(outputBuf, 0, readBuf, 0, inputData.byteLength);
+  enc.copyBufferToBuffer(outputBuf, 0, readBuf, 0, inputData1.byteLength);
   device.queue.submit([enc.finish()]);
 
   // --- read back ---
@@ -250,7 +259,8 @@ async function runKernel() {
   readBuf.unmap();
 
   outputBox.textContent =
-    `input:  [${Array.from(inputData.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
+    `input1:  [${Array.from(inputData1.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
+    `input2:  [${Array.from(inputData2.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
     `output: [${Array.from(result.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
     `\nN = ${N}`;
 }
