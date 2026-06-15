@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WGSL Playground</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f0f0f;
+    color: #e0e0e0;
+    font-family: monospace;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    padding: 10px 16px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  header h1 { font-size: 14px; color: #aaa; font-weight: normal; }
+  button {
+    background: #2a6ef5;
+    color: white;
+    border: none;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-family: monospace;
+    font-size: 13px;
+  }
+  button:hover { background: #3a7ef5; }
+  #status { font-size: 12px; color: #888; margin-left: auto; }
+  main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #editor-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #333;
+  }
+  #editor {
+    flex: 1;
+    background: #111;
+    color: #c9d1d9;
+    border: none;
+    resize: none;
+    padding: 12px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    outline: none;
+    tab-size: 2;
+  }
+  #output-pane {
+    width: 380px;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    gap: 10px;
+    overflow-y: auto;
+  }
+  .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  #error-box {
+    background: #1a0a0a;
+    border: 1px solid #5a1a1a;
+    color: #f08080;
+    padding: 10px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    min-height: 60px;
+    display: none;
+  }
+  #output-box {
+    background: #0a1a0a;
+    border: 1px solid #1a3a1a;
+    color: #80c080;
+    padding: 10px;
+    font-size: 12px;
+    white-space: pre-wrap;
+    min-height: 100px;
+  }
+  #config { display: flex; flex-direction: column; gap: 6px; }
+  #config label { font-size: 12px; color: #888; }
+  #config input {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #e0e0e0;
+    padding: 4px 8px;
+    font-family: monospace;
+    font-size: 12px;
+    width: 100%;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>wgsl playground</h1>
+  <button onclick="runKernel()">▶ Run</button>
+  <span id="status">checking WebGPU...</span>
+</header>
+
+<main>
+  <div id="editor-pane">
+    <textarea id="editor" spellcheck="false">// Bindings:
+//   @binding(0) input:  array<f32>  — N floats
+//   @binding(1) output: array<f32>  — N floats
+//
+// Task: multiply every element by 2.
+
+@group(0) @binding(0) var<storage, read>       input:  array<f32>;
+@group(0) @binding(1) var<storage, read_write> output: array<f32>;
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let i = gid.x;
+  if (i >= arrayLength(&input)) { return; }
+
+  // TODO: write your kernel here
+  output[i] = input[i];
+}
+</textarea>
+  </div>
+
+  <div id="output-pane">
+    <div id="config">
+      <div class="label">Config</div>
+      <label>N (number of elements)
+        <input id="cfg-n" type="number" value="16" min="1" max="65536">
+      </label>
+    </div>
+
+    <div>
+      <div class="label">Errors</div>
+      <div id="error-box"></div>
+    </div>
+
+    <div>
+      <div class="label">Output</div>
+      <div id="output-box">— not run yet —</div>
+    </div>
+  </div>
+</main>
+
+<script>
+const statusEl  = document.getElementById('status');
+const errorBox  = document.getElementById('error-box');
+const outputBox = document.getElementById('output-box');
+
+let device = null;
+
+async function init() {
+  if (!navigator.gpu) {
+    statusEl.textContent = '✗ WebGPU not supported';
+    statusEl.style.color = '#f08080';
+    return;
+  }
+  const adapter = await navigator.gpu.requestAdapter();
+  if (!adapter) {
+    statusEl.textContent = '✗ no GPU adapter';
+    statusEl.style.color = '#f08080';
+    return;
+  }
+  device = await adapter.requestDevice();
+  statusEl.textContent = '✓ WebGPU ready';
+  statusEl.style.color = '#80c080';
+}
+
+async function runKernel() {
+  if (!device) { outputBox.textContent = 'WebGPU not available.'; return; }
+
+  errorBox.style.display = 'none';
+  errorBox.textContent = '';
+  outputBox.textContent = 'running...';
+
+  const N = parseInt(document.getElementById('cfg-n').value) || 16;
+  const code = document.getElementById('editor').value;
+
+  // --- compile shader ---
+  const module = device.createShaderModule({ code });
+  const info = await module.getCompilationInfo();
+  const errors = info.messages.filter(m => m.type === 'error');
+  if (errors.length) {
+    errorBox.style.display = 'block';
+    errorBox.textContent = errors.map(e => `line ${e.lineNum}: ${e.message}`).join('\n');
+    outputBox.textContent = '— shader did not compile —';
+    return;
+  }
+
+  // --- buffers ---
+  const inputData = new Float32Array(N).map((_, i) => i + 1);
+
+  const inputBuf = device.createBuffer({
+    size: inputData.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+  });
+  device.queue.writeBuffer(inputBuf, 0, inputData);
+
+  const outputBuf = device.createBuffer({
+    size: inputData.byteLength,
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
+  });
+
+  const readBuf = device.createBuffer({
+    size: inputData.byteLength,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
+
+  // --- pipeline ---
+  let pipeline;
+  try {
+    pipeline = await device.createComputePipelineAsync({
+      layout: 'auto',
+      compute: { module, entryPoint: 'main' },
+    });
+  } catch (e) {
+    errorBox.style.display = 'block';
+    errorBox.textContent = String(e);
+    outputBox.textContent = '— pipeline error —';
+    return;
+  }
+
+  const bindGroup = device.createBindGroup({
+    layout: pipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: inputBuf } },
+      { binding: 1, resource: { buffer: outputBuf } },
+    ],
+  });
+
+  // --- dispatch ---
+  const enc = device.createCommandEncoder();
+  const pass = enc.beginComputePass();
+  pass.setPipeline(pipeline);
+  pass.setBindGroup(0, bindGroup);
+  pass.dispatchWorkgroups(Math.ceil(N / 64));
+  pass.end();
+  enc.copyBufferToBuffer(outputBuf, 0, readBuf, 0, inputData.byteLength);
+  device.queue.submit([enc.finish()]);
+
+  // --- read back ---
+  await readBuf.mapAsync(GPUMapMode.READ);
+  const result = new Float32Array(readBuf.getMappedRange().slice(0));
+  readBuf.unmap();
+
+  outputBox.textContent =
+    `input:  [${Array.from(inputData.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
+    `output: [${Array.from(result.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
+    `\nN = ${N}`;
+}
+
+init();
+</script>
+</body>
+</html>
