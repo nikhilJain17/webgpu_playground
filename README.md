@@ -14,6 +14,9 @@ python3 -m http.server 8080
 # Node
 npx serve .
 
+# Node with auto-reload on file changes
+npx live-server --port=8080
+
 # VS Code: install the "Live Server" extension, right-click index.html → Open with Live Server
 ```
 
@@ -23,93 +26,30 @@ Then open `http://localhost:8080`.
 
 ## Writing kernels
 
-### Option A: inline in the HTML (simplest)
-
-Edit the `<textarea>` directly in the browser. Good for quick experiments.
-No reload needed — just hit Run.
-
-### Option B: separate `.wgsl` files (recommended)
-
-Create a file next to `index.html`, e.g. `group_norm.wgsl`.
-Then in `index.html`, replace the textarea default value with a fetch:
-
-```js
-// near the top of the <script> block, after init():
-fetch('group_norm.wgsl')
-  .then(r => r.text())
-  .then(src => document.getElementById('editor').value = src);
-```
-
-Now you edit `group_norm.wgsl` in your editor of choice, reload the page, hit Run.
-The textarea still shows the source so you can see it.
-
-If you want live reload on file save, use the VS Code Live Server extension
-or `browser-sync`:
-
-```bash
-npx browser-sync start --server --files "*.wgsl, index.html"
-```
+Write your WGSL shader in your editor, then paste it into the textarea and hit **Run**.
+Compile errors appear in the error box with line numbers.
 
 ---
 
-## Adding a new kernel
+## Validating WGSL offline with `tint`
 
-Every kernel needs two things: a JS harness (buffers + dispatch) and the WGSL shader.
+`tint` is the WGSL compiler used inside Chrome. Running it locally catches errors before opening the browser.
 
-### 1. JS side — in `index.html`
+**Install** (macOS via Homebrew):
 
-Create the input buffers and write data into them:
-
-```js
-const gammaBuf = device.createBuffer({
-  size: C * 4,                                    // C floats, 4 bytes each
-  usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-});
-device.queue.writeBuffer(gammaBuf, 0, gammaData); // gammaData is a Float32Array
+```bash
+brew install tint
 ```
 
-Add them to the bind group:
+Or build from source: https://dawn.googlesource.com/dawn
 
-```js
-{ binding: 2, resource: { buffer: gammaBuf } },
-{ binding: 3, resource: { buffer: betaBuf  } },
+**Usage:**
+
+```bash
+tint validate kernels/group_norm.wgsl
 ```
 
-Dispatch with the right workgroup count:
-
-```js
-pass.dispatchWorkgroups(numGroups); // one workgroup per group, typically
-```
-
-### 2. WGSL side — in your `.wgsl` file
-
-Declare the same bindings:
-
-```wgsl
-@group(0) @binding(0) var<storage, read>       input:  array<f32>;
-@group(0) @binding(1) var<storage, read_write> output: array<f32>;
-@group(0) @binding(2) var<storage, read>       gamma:  array<f32>;
-@group(0) @binding(3) var<storage, read>       beta:   array<f32>;
-```
-
-Use workgroup shared memory for reductions (mean, variance):
-
-```wgsl
-var<workgroup> shared: array<f32, 256>; // must be a compile-time constant size
-
-@compute @workgroup_size(256)
-fn main(
-  @builtin(global_invocation_id) gid: vec3<u32>,
-  @builtin(local_invocation_id)  lid: vec3<u32>,
-  @builtin(workgroup_id)         wgid: vec3<u32>,
-) { ... }
-```
-
-Synchronize threads within a workgroup after writing to shared memory:
-
-```wgsl
-workgroupBarrier();
-```
+Exit code 0 = valid. Errors include line numbers and a message from the same parser Chrome uses.
 
 ---
 

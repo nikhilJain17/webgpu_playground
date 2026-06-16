@@ -58,7 +58,7 @@
     tab-size: 2;
   }
   #output-pane {
-    width: 380px;
+    width: 40%;
     display: flex;
     flex-direction: column;
     padding: 12px;
@@ -196,6 +196,7 @@ async function runKernel() {
   // --- buffers ---
   const inputData1 = new Float32Array(N).map((_, i) => i + 1);
   const inputData2 = new Float32Array(N).map((_, i) => N - (i + 1));
+  const randomData = Float32Array.from({length: N}, () => Math.random() * 2 - 1);
 
   const inputBuf1 = device.createBuffer({
     size: inputData1.byteLength,
@@ -258,11 +259,13 @@ async function runKernel() {
   const result = new Float32Array(readBuf.getMappedRange().slice(0));
   readBuf.unmap();
 
-  outputBox.textContent =
-    `input1:  [${Array.from(inputData1.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
-    `input2:  [${Array.from(inputData2.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
-    `output: [${Array.from(result.slice(0, 8)).join(', ')}${N > 8 ? ', ...' : ''}]\n` +
-    `\nN = ${N}`;
+  const col = (v, w) => String(v).padEnd(w);
+  const header = `${col('index', 8)}${col('input1', 12)}${col('input2', 12)}output`;
+  const divider = '-'.repeat(header.length);
+  const rows = Array.from({length: N}, (_, i) =>
+    `${col(i, 8)}${col(inputData1[i], 12)}${col(inputData2[i], 12)}${result[i]}`
+  ).join('\n');
+  outputBox.textContent = `${header}\n${divider}\n${rows}\n\nN = ${N}`;
 }
 
 init();
