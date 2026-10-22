@@ -1,274 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>WGSL Playground</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0f0f0f;
-    color: #e0e0e0;
-    font-family: monospace;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-  header {
-    padding: 10px 16px;
-    background: #1a1a1a;
-    border-bottom: 1px solid #333;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  header h1 { font-size: 14px; color: #aaa; font-weight: normal; }
-  button {
-    background: #2a6ef5;
-    color: white;
-    border: none;
-    padding: 6px 16px;
-    cursor: pointer;
-    font-family: monospace;
-    font-size: 13px;
-  }
-  button:hover { background: #3a7ef5; }
-  #status { font-size: 12px; color: #888; margin-left: auto; }
-  main {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-  }
-  #editor-pane {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    border-right: 1px solid #333;
-  }
-  #editor {
-    flex: 1;
-    background: #111;
-    color: #c9d1d9;
-    border: none;
-    resize: none;
-    padding: 12px;
-    font-family: monospace;
-    font-size: 13px;
-    line-height: 1.6;
-    outline: none;
-    tab-size: 2;
-  }
-  #output-pane {
-    width: 40%;
-    display: flex;
-    flex-direction: column;
-    padding: 12px;
-    gap: 10px;
-    overflow-y: auto;
-  }
-  .label { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-  #error-box {
-    background: #1a0a0a;
-    border: 1px solid #5a1a1a;
-    color: #f08080;
-    padding: 10px;
-    font-size: 12px;
-    white-space: pre-wrap;
-    min-height: 60px;
-    display: none;
-  }
-  #output-box {
-    background: #0a1a0a;
-    border: 1px solid #1a3a1a;
-    color: #80c080;
-    padding: 10px;
-    font-size: 12px;
-    white-space: pre-wrap;
-    min-height: 100px;
-  }
-  #config { display: flex; flex-direction: column; gap: 6px; }
-  #config label { font-size: 12px; color: #888; }
-  #config input {
-    background: #1a1a1a;
-    border: 1px solid #333;
-    color: #e0e0e0;
-    padding: 4px 8px;
-    font-family: monospace;
-    font-size: 12px;
-    width: 100%;
-  }
-</style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WGSL Playground</title><link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-<header>
-  <h1>wgsl playground</h1>
-  <button onclick="runKernel()">▶ Run</button>
-  <span id="status">checking WebGPU...</span>
-</header>
-
+<header><h1>WGSL Playground</h1><button id="run">▶ Run</button><strong id="status" role="status">Loading…</strong></header>
 <main>
-  <div id="editor-pane">
-    <textarea id="editor" spellcheck="false">// Bindings:
-//   @binding(0) input:  array<f32>  — N floats
-//   @binding(1) output: array<f32>  — N floats
-//
-// Task: multiply every element by 2.
-
-@group(0) @binding(0) var<storage, read>       input:  array<f32>;
-@group(0) @binding(1) var<storage, read_write> output: array<f32>;
-
-@compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-  let i = gid.x;
-  if (i >= arrayLength(&input)) { return; }
-
-  // TODO: write your kernel here
-  output[i] = input[i];
-}
-</textarea>
-  </div>
-
-  <div id="output-pane">
-    <div id="config">
-      <div class="label">Config</div>
-      <label>N (number of elements)
-        <input id="cfg-n" type="number" value="64" min="1" max="65536">
-      </label>
-    </div>
-
-    <div>
-      <div class="label">Errors</div>
-      <div id="error-box"></div>
-    </div>
-
-    <div>
-      <div class="label">Output</div>
-      <div id="output-box">— not run yet —</div>
-    </div>
-  </div>
-</main>
-
-<script>
-const statusEl  = document.getElementById('status');
-const errorBox  = document.getElementById('error-box');
-const outputBox = document.getElementById('output-box');
-
-let device = null;
-
-async function init() {
-  if (!navigator.gpu) {
-    statusEl.textContent = '✗ WebGPU not supported';
-    statusEl.style.color = '#f08080';
-    return;
-  }
-  const adapter = await navigator.gpu.requestAdapter();
-  if (!adapter) {
-    statusEl.textContent = '✗ no GPU adapter';
-    statusEl.style.color = '#f08080';
-    return;
-  }
-  device = await adapter.requestDevice();
-  statusEl.textContent = '✓ WebGPU ready';
-  statusEl.style.color = '#80c080';
-}
-
-async function runKernel() {
-  if (!device) { outputBox.textContent = 'WebGPU not available.'; return; }
-
-  errorBox.style.display = 'none';
-  errorBox.textContent = '';
-  outputBox.textContent = 'running...';
-
-  const N = parseInt(document.getElementById('cfg-n').value) || 16;
-  const code = document.getElementById('editor').value;
-
-  // --- compile shader ---
-  const module = device.createShaderModule({ code });
-  const info = await module.getCompilationInfo();
-  const errors = info.messages.filter(m => m.type === 'error');
-  if (errors.length) {
-    errorBox.style.display = 'block';
-    errorBox.textContent = errors.map(e => `line ${e.lineNum}: ${e.message}`).join('\n');
-    outputBox.textContent = '— shader did not compile —';
-    return;
-  }
-
-  // --- buffers ---
-  const inputData1 = new Float32Array(N).map((_, i) => i + 1);
-  const inputData2 = new Float32Array(N).map((_, i) => N - (i + 1));
-  const randomData = Float32Array.from({length: N}, () => Math.random() * 2 - 1);
-
-  const inputBuf1 = device.createBuffer({
-    size: inputData1.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  });
-
-  const inputBuf2 = device.createBuffer({
-    size: inputData1.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-  })
-
-  device.queue.writeBuffer(inputBuf1, 0, inputData1);
-  device.queue.writeBuffer(inputBuf2, 0, inputData2);
-
-  const outputBuf = device.createBuffer({
-    size: inputData1.byteLength,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC,
-  });
-
-  const readBuf = device.createBuffer({
-    size: inputData1.byteLength,
-    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-  });
-
-  // --- pipeline ---
-  let pipeline;
-  try {
-    pipeline = await device.createComputePipelineAsync({
-      layout: 'auto',
-      compute: { module, entryPoint: 'main' },
-    });
-  } catch (e) {
-    errorBox.style.display = 'block';
-    errorBox.textContent = String(e);
-    outputBox.textContent = '— pipeline error —';
-    return;
-  }
-
-  const bindGroup = device.createBindGroup({
-    layout: pipeline.getBindGroupLayout(0),
-    entries: [
-      { binding: 0, resource: { buffer: inputBuf1 } },
-      { binding: 1, resource: { buffer: inputBuf2 } },
-      { binding: 2, resource: { buffer: outputBuf } },
-    ],
-  });
-
-  // --- dispatch ---
-  const enc = device.createCommandEncoder();
-  const pass = enc.beginComputePass();
-  pass.setPipeline(pipeline);
-  pass.setBindGroup(0, bindGroup);
-  pass.dispatchWorkgroups(Math.ceil(N / 64));
-  pass.end();
-  enc.copyBufferToBuffer(outputBuf, 0, readBuf, 0, inputData1.byteLength);
-  device.queue.submit([enc.finish()]);
-
-  // --- read back ---
-  await readBuf.mapAsync(GPUMapMode.READ);
-  const result = new Float32Array(readBuf.getMappedRange().slice(0));
-  readBuf.unmap();
-
-  const col = (v, w) => String(v).padEnd(w);
-  const header = `${col('index', 8)}${col('input1', 12)}${col('input2', 12)}output`;
-  const divider = '-'.repeat(header.length);
-  const rows = Array.from({length: N}, (_, i) =>
-    `${col(i, 8)}${col(inputData1[i], 12)}${col(inputData2[i], 12)}${result[i]}`
-  ).join('\n');
-  outputBox.textContent = `${header}\n${divider}\n${rows}\n\nN = ${N}`;
-}
-
-init();
-</script>
-</body>
-</html>
+<section class="source">
+  <div class="toolbar"><label>Shader file <select id="source"><option>kernels/hello_world.wgsl</option><option>kernels/vector_add.wgsl</option><option>kernels/group_norm.wgsl</option></select></label><button id="reload">Load / reload file</button><label class="button">Open WGSL<input type="file" id="open" accept=".wgsl" hidden></label><button id="save">Download editor</button></div>
+  <p id="source-status"></p>
+  <textarea id="editor" spellcheck="false" aria-label="WGSL source"></textarea>
+  <p>Run executes an immutable snapshot of this editor. Loading a file never chooses a test or dispatch mode.</p>
+</section>
+<section class="controls">
+  <div class="toolbar"><label>Test configuration <select id="preset"><option value="copy">Copy</option><option value="group-norm">Group normalization</option></select></label><button id="load-preset">Apply preset</button><button id="export">Download config</button><label class="button">Import config<input type="file" id="import" accept=".json" hidden></label></div>
+  <label>Entry point <input id="entry" value="main"></label>
+  <label>Parameters (JSON)<textarea id="parameters" rows="3" spellcheck="false"></textarea></label>
+  <p id="parameter-summary"></p>
+  <label>Dispatch <select id="dispatch"><option value="elementwise">Elementwise — enough invocations for N</option><option value="explicit">Explicit workgroup count — X / Y / Z</option></select></label>
+  <div id="explicit"><label>X <input id="dx" type="number" min="1" value="1"></label><label>Y <input id="dy" type="number" min="1" value="1"></label><label>Z <input id="dz" type="number" min="1" value="1"></label></div>
+  <p>Elementwise requires workgroup Y=Z=1 and a bounds check in your shader. Explicit counts describe workgroups, not elements.</p>
+  <div class="toolbar"><button id="reflect">Inspect shader resources</button><button id="add">Add resource</button></div>
+  <pre id="reflection">Inspect the shader to see its required bindings and layout.</pre>
+  <p>Resources are explicit. Inspection does not add bindings or infer output roles. Length may be a number or a parameter name (e.g. N).</p>
+  <div id="resources"></div>
+  <label>Expected-result check <select id="check"><option value="disabled">Disabled — inspect intermediate results</option><option value="copy">Copy — exact F32 equality</option><option value="group-norm">Group normalization — CPU reference</option></select></label>
+  <div class="toolbar"><label>Input group:binding <input id="check-input" value="0:0"></label><label>Output group:binding <input id="check-output" value="0:2"></label></div>
+  <div class="toolbar"><label>Absolute tolerance <input id="atol" type="number" min="0" step="any" value="0.00001"></label><label>Relative tolerance <input id="rtol" type="number" min="0" step="any" value="0.0001"></label></div>
+  <label><input id="confirmed" type="checkbox"> I matched the shader’s dimensions, group indexing, epsilon and dispatch to these parameters.</label>
+  <p>Group norm: contiguous channels, flattened spatial dimensions, population variance, no affine scale/bias. Configuration does not rewrite WGSL. Confirmation is required for its check; edits reset it.</p>
+  <details><summary>Advanced pipeline constants (JSON)</summary><textarea id="constants" rows="2">{}</textarea><p>For WGSL overrides. Override-using entry points require explicit dispatch.</p></details>
+</section>
+<section class="results">
+  <h2>Last execution</h2><p id="executed">No run yet.</p>
+  <strong id="execution">Execution: not run</strong><strong id="correctness">Correctness: not checked</strong>
+  <pre id="errors" role="alert"></pre><pre id="diagnostics"></pre>
+  <button id="download-results" disabled>Download all readbacks (JSON)</button><div id="outputs"></div>
+</section>
+</main><script type="module" src="app.js"></script>
+</body></html>

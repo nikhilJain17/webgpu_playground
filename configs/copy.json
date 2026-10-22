@@ -1,0 +1,10 @@
+{
+  "entryPoint": "main",
+  "parameters": {"N": 256},
+  "resources": [
+    {"group": 0, "binding": 0, "kind": "storage", "access": "read", "role": "input", "type": "f32", "length": "N", "init": "deterministic", "readback": false},
+    {"group": 0, "binding": 2, "kind": "storage", "access": "read_write", "role": "output", "type": "f32", "length": "N", "init": "zero", "readback": true}
+  ],
+  "dispatch": {"mode": "elementwise"},
+  "check": {"mode": "copy", "input": "0:0", "output": "0:2", "atol": 0, "rtol": 0}
+}
