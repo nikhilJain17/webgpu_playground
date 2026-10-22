@@ -46,7 +46,7 @@ Or build from source: https://dawn.googlesource.com/dawn
 **Usage:**
 
 ```bash
-tint validate kernels/group_norm.wgsl
+tint --format wgsl kernels/hello_world.wgsl -o /dev/null
 ```
 
 Exit code 0 = valid. Errors include line numbers and a message from the same parser Chrome uses.
