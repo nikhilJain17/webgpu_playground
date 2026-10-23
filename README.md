@@ -89,7 +89,7 @@ abs(actual - expected) <= atol + rtol * abs(expected)
 
 Default tolerances are `atol=1e-5`, `rtol=1e-4`; both are configurable. Failures show total mismatches, nonfinite pairs and the first 32 mismatching indices/values. Every readback separately reports nonfinite values even when checking is disabled.
 
-Configuration cannot establish the meaning of arbitrary shader constants. Before enabling this check, explicitly confirm that the shader’s dimensions, grouping, epsilon and dispatch agree with the displayed configuration. Source/parameter/resource/dispatch edits reset confirmation. For parameterized shaders, use `fields` mappings to bind values from the same configuration. For hardcoded shaders, check the constants yourself. **Confirmation is your assertion, not automatic proof of shader semantics.**
+The CPU reference uses the configured dimensions, grouping and epsilon. For parameterized shaders, use `fields` mappings to bind values from the same configuration. Hardcoded shader parameters remain under your control; mismatches are reported by the comparison. No confirmation checkbox is required.
 
 While developing partial sums, means or variances, select **Disabled** and read back whichever output/debug buffers your shader declares. Neither the preset nor the tests supply or complete your group-norm kernel. The existing exercise is not asserted to implement the general reference contract.
 
@@ -144,3 +144,52 @@ Dispatch + readback: inspect intermediate values or compare against a reference
 ```
 
 Implementation: `core.js` handles reflection/configuration/references, `runner.js` owns the WebGPU lifecycle, and `app.js` connects them to the editor. No generated or duplicate copies of exercise shaders are maintained.
+
+## External group-norm kernel: inputs 1…16
+
+Open this preconfigured page after starting the server:
+
+[Group norm — external source, 16 elements](http://localhost:8080/?config=group-norm-16&source=external/stable-diffusion-group-norm.wgsl)
+
+It loads `configs/group-norm-16.json` and the external shader at
+`../stable-diffusion.cpp/ggml/src/ggml-webgpu/wgsl-shaders/group_norm.wgsl`.
+The `external/stable-diffusion-group-norm.wgsl` filesystem symlink points to that
+file; it is not a copied shader. The sibling `stable-diffusion.cpp` checkout must
+exist at that relative location. The existing Python server follows this link.
+**Load / reload file** fetches fresh source after edits in your shader editor.
+Run executes the currently displayed editor snapshot, with its full source path,
+unsaved-change status and SHA-256 shown under Last execution.
+
+This preset provides:
+
+- Binding 0:0: F32 inputs `[1,2,…,16]`, with readback enabled.
+- Binding 0:2: **16** F32 output elements, with readback enabled.
+- Explicit dispatch **2 × 1 × 1**, independent of the shader's four-thread workgroup.
+- CPU group norm: batch 1, channels 2, spatial `[8]`, groups 2, epsilon `1e-6`.
+- Full 16-element comparison: absolute and relative tolerances both `1e-5`.
+
+The two reference groups have means **4.5** and **12.5**, population variance
+**5.25** each, and the same expected eight normalized values. Click Run to compare all outputs. The preset can also be selected from the
+configuration menu without changing source, or imported as JSON.
+
+Reproduce the browser verification with:
+
+```bash
+npm run test:group-norm
+```
+
+This loads the page/preset, verifies the editor equals the requested external file,
+checks the displayed source hash, compares all outputs over 20 actual GPU runs,
+and deliberately breaks a binding to verify stale output is cleared. It never
+edits the kernel. Numerical failures are recorded as **FAIL** in the report;
+the test command verifies harness behavior rather than requiring an unfinished
+kernel to pass. See `test-results/group-norm-16.json` and its screenshot.
+
+On Chrome 155 / Apple Metal, source SHA-256
+`d925e9c7cc4b167401e50cff8a0efe091a3b61b65edabf30989dc541c3bf428a`
+produced 17 passing and 3 failing numerical runs out of 20. The failing runs had
+index **4 = 5.25**, expected **0.21821786945333915**, with no nonfinite values.
+The leftover `output[gid.x] = variance;` write remains in that source: workgroup 1
+writes variance at output index 4 while workgroup 0 writes normalized output
+there. Workgroup barriers cannot synchronize these separate workgroups. A pass
+in one execution does not prove race freedom. The harness leaves this fix to you.

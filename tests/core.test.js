@@ -41,8 +41,8 @@ test('uniform field mapping tracks configuration and respects byte offsets', () 
   const data=bufferData({group:0,binding:4,type:'u32',length:4,init:'fields',fields:[{offset:0,type:'u32',value:'channels'},{offset:8,type:'f32',value:'epsilon'}]}, {channels:8,epsilon:0.125});
   const v=new DataView(data.buffer); assert.equal(v.getUint32(0,true),8); assert.equal(v.getFloat32(8,true),0.125); assert.equal(v.getUint32(4,true),0);
 });
-test('group preset requires contract confirmation but supports disabled intermediate checks', () => {
+test('group preset runs without confirmation and supports disabled intermediate checks', () => {
   const c=JSON.parse(fs.readFileSync(new URL('../configs/group-norm.json',import.meta.url)));
-  assert.throws(()=>prepare(c,reflect(source,'main')),/Confirm/);
+  assert.equal(prepare(c,reflect(source,'main')).p.N,64);
   c.check.mode='disabled'; assert.equal(prepare(c,reflect(source,'main')).p.N,64);
 });

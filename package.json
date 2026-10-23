@@ -2,7 +2,16 @@
   "name": "wgsl-playground",
   "private": true,
   "type": "module",
-  "scripts": {"start": "python3 -m http.server 8080", "test": "node --test tests/core.test.js", "test:browser": "node tests/browser.mjs"},
-  "dependencies": {"wgsl_reflect": "1.6.0"},
-  "devDependencies": {"playwright": "1.56.1"}
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/core.test.js",
+    "test:browser": "node tests/browser.mjs",
+    "test:group-norm": "node tests/group-norm-browser.mjs"
+  },
+  "dependencies": {
+    "wgsl_reflect": "1.6.0"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
 }

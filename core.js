@@ -106,7 +106,6 @@ export function prepare(config, reflected, limits = {}) {
       throw Error('Checks need explicitly selected, distinct F32 input/output buffers of length N, with output readback enabled');
     if (check.mode === 'group-norm') {
       if (!('batch' in p)) throw Error('Group norm requires batch/channels/spatial/groups/epsilon');
-      if (!config.shaderParametersConfirmed) throw Error('Confirm shader dimensions, grouping, epsilon and dispatch agree with the configuration before enabling group-norm checks');
       for (const t of ['atol', 'rtol']) if (!Number.isFinite(check[t]) || check[t] < 0) throw Error(`${t} must be finite and nonnegative`);
     }
   }

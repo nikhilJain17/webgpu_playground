@@ -1,11 +1,52 @@
 {
   "entryPoint": "main",
-  "parameters": {"batch": 1, "channels": 4, "spatial": [4, 4], "groups": 1, "epsilon": 0.00001},
+  "parameters": {
+    "batch": 1,
+    "channels": 4,
+    "spatial": [
+      4,
+      4
+    ],
+    "groups": 1,
+    "epsilon": 1e-05
+  },
   "resources": [
-    {"group": 0, "binding": 0, "kind": "storage", "access": "read", "role": "input", "type": "f32", "length": "N", "init": "deterministic", "readback": false},
-    {"group": 0, "binding": 2, "kind": "storage", "access": "read_write", "role": "output", "type": "f32", "length": "N", "init": "zero", "readback": true}
+    {
+      "group": 0,
+      "binding": 0,
+      "kind": "storage",
+      "access": "read",
+      "role": "input",
+      "type": "f32",
+      "length": "N",
+      "init": "deterministic",
+      "readback": false
+    },
+    {
+      "group": 0,
+      "binding": 2,
+      "kind": "storage",
+      "access": "read_write",
+      "role": "output",
+      "type": "f32",
+      "length": "N",
+      "init": "zero",
+      "readback": true
+    }
   ],
-  "dispatch": {"mode": "explicit", "workgroups": [1, 1, 1]},
-  "check": {"mode": "group-norm", "input": "0:0", "output": "0:2", "atol": 0.00001, "rtol": 0.0001},
-  "shaderParametersConfirmed": false
+  "dispatch": {
+    "mode": "explicit",
+    "workgroups": [
+      1,
+      1,
+      1
+    ]
+  },
+  "check": {
+    "mode": "group-norm",
+    "input": "0:0",
+    "output": "0:2",
+    "atol": 1e-05,
+    "rtol": 0.0001
+  }
 }

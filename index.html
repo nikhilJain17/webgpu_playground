@@ -8,13 +8,13 @@
 <header><h1>WGSL Playground</h1><button id="run">▶ Run</button><strong id="status" role="status">Loading…</strong></header>
 <main>
 <section class="source">
-  <div class="toolbar"><label>Shader file <select id="source"><option>kernels/hello_world.wgsl</option><option>kernels/vector_add.wgsl</option><option>kernels/group_norm.wgsl</option></select></label><button id="reload">Load / reload file</button><label class="button">Open WGSL<input type="file" id="open" accept=".wgsl" hidden></label><button id="save">Download editor</button></div>
+  <div class="toolbar"><label>Shader file <select id="source"><option>kernels/hello_world.wgsl</option><option>kernels/vector_add.wgsl</option><option>kernels/group_norm.wgsl</option><option value="external/stable-diffusion-group-norm.wgsl">../stable-diffusion.cpp/ggml/src/ggml-webgpu/wgsl-shaders/group_norm.wgsl</option></select></label><button id="reload">Load / reload file</button><label class="button">Open WGSL<input type="file" id="open" accept=".wgsl" hidden></label><button id="save">Download editor</button></div>
   <p id="source-status"></p>
   <textarea id="editor" spellcheck="false" aria-label="WGSL source"></textarea>
   <p>Run executes an immutable snapshot of this editor. Loading a file never chooses a test or dispatch mode.</p>
 </section>
 <section class="controls">
-  <div class="toolbar"><label>Test configuration <select id="preset"><option value="copy">Copy</option><option value="group-norm">Group normalization</option></select></label><button id="load-preset">Apply preset</button><button id="export">Download config</button><label class="button">Import config<input type="file" id="import" accept=".json" hidden></label></div>
+  <div class="toolbar"><label>Test configuration <select id="preset"><option value="copy">Copy</option><option value="group-norm">Group normalization</option><option value="group-norm-16">Group norm — 1…16, two groups of eight</option></select></label><button id="load-preset">Apply preset</button><button id="export">Download config</button><label class="button">Import config<input type="file" id="import" accept=".json" hidden></label></div>
   <label>Entry point <input id="entry" value="main"></label>
   <label>Parameters (JSON)<textarea id="parameters" rows="3" spellcheck="false"></textarea></label>
   <p id="parameter-summary"></p>
@@ -28,8 +28,7 @@
   <label>Expected-result check <select id="check"><option value="disabled">Disabled — inspect intermediate results</option><option value="copy">Copy — exact F32 equality</option><option value="group-norm">Group normalization — CPU reference</option></select></label>
   <div class="toolbar"><label>Input group:binding <input id="check-input" value="0:0"></label><label>Output group:binding <input id="check-output" value="0:2"></label></div>
   <div class="toolbar"><label>Absolute tolerance <input id="atol" type="number" min="0" step="any" value="0.00001"></label><label>Relative tolerance <input id="rtol" type="number" min="0" step="any" value="0.0001"></label></div>
-  <label><input id="confirmed" type="checkbox"> I matched the shader’s dimensions, group indexing, epsilon and dispatch to these parameters.</label>
-  <p>Group norm: contiguous channels, flattened spatial dimensions, population variance, no affine scale/bias. Configuration does not rewrite WGSL. Confirmation is required for its check; edits reset it.</p>
+  <p>Group norm: contiguous channels, flattened spatial dimensions, population variance, no affine scale/bias. Configuration does not rewrite WGSL. The CPU reference uses the configured dimensions and epsilon.</p>
   <details><summary>Advanced pipeline constants (JSON)</summary><textarea id="constants" rows="2">{}</textarea><p>For WGSL overrides. Override-using entry points require explicit dispatch.</p></details>
 </section>
 <section class="results">

@@ -1,0 +1,1 @@
+../../stable-diffusion.cpp/ggml/src/ggml-webgpu/wgsl-shaders/group_norm.wgsl

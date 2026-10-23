@@ -13,7 +13,6 @@ function sourceStatus() {
   const dirty = $('editor').value !== baseline;
   $('source-status').textContent = `${sourceName || 'Editor'} — ${dirty ? 'UNSAVED editor changes' : downloaded ? 'downloaded snapshot (disk file not overwritten)' : 'matches loaded file'}`;
 }
-function resetConfirmation() { $('confirmed').checked = false; }
 function download(name, text, type = 'application/json') {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = document.createElement('a'); a.href = url; a.download = name; a.click();
@@ -35,8 +34,7 @@ function addResource(resource = { group: 0, binding: 0, kind: 'storage', access:
   if (resource.values) extra.values = resource.values;
   if (resource.fields) extra.fields = resource.fields;
   div.querySelector('.extra').value = JSON.stringify(extra);
-  div.querySelector('.remove').onclick = () => { div.remove(); resetConfirmation(); };
-  div.addEventListener('input', resetConfirmation);
+  div.querySelector('.remove').onclick = () => { div.remove(); };
   $('resources').append(div);
 }
 function readConfig() {
@@ -53,7 +51,7 @@ function readConfig() {
     }),
     dispatch: { mode: $('dispatch').value, workgroups: ['dx','dy','dz'].map(id => Number($(id).value)) },
     check: { mode: $('check').value, input: $('check-input').value, output: $('check-output').value, atol: Number($('atol').value), rtol: Number($('rtol').value) },
-    shaderParametersConfirmed: $('confirmed').checked, constants: JSON.parse($('constants').value)
+    constants: JSON.parse($('constants').value)
   };
 }
 function applyConfig(config) {
@@ -66,7 +64,7 @@ function applyConfig(config) {
   $('check-input').value = config.check.input ?? '0:0'; $('check-output').value = config.check.output ?? '0:2';
   $('atol').value = config.check.atol ?? 0.00001; $('rtol').value = config.check.rtol ?? 0.0001;
   $('constants').value = JSON.stringify(config.constants || {});
-  resetConfirmation(); updateParameters(); updateDispatch();
+  updateParameters(); updateDispatch();
 }
 function updateDispatch() { $('explicit').hidden = $('dispatch').value !== 'explicit'; $('explicit').style.display = $('explicit').hidden ? 'none' : 'flex'; }
 function updateParameters() {
@@ -90,8 +88,8 @@ async function loadSource() {
   try {
     const response = await fetch($('source').value, { cache: 'no-store' });
     if (!response.ok) throw Error(`Could not load shader: HTTP ${response.status}`);
-    baseline = await response.text(); sourceName = $('source').value; downloaded = false;
-    $('editor').value = baseline; sourceStatus(); resetConfirmation(); inspect();
+    baseline = await response.text(); sourceName = $('source').selectedOptions[0].textContent; downloaded = false;
+    $('editor').value = baseline; sourceStatus(); inspect();
   } catch (e) { message(e); }
   finally { loading = false; $('run').disabled = runner.busy; }
 }
@@ -107,6 +105,9 @@ async function run() {
   const disabled = controls.map(c => c.disabled); controls.forEach(c => c.disabled = true);
   try {
     const config = readConfig();
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(code));
+    const sourceHash = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+    $('executed').textContent += ` — SHA-256 ${sourceHash}`;
     result = await runner.run(code, config, stage => $('status').textContent = stage);
     $('execution').textContent = `Execution: SUCCESS — dispatched ${result.dispatch.join(' × ')} workgroups; shader workgroup ${result.workgroup?.join(' × ') || 'override-dependent'}`; $('execution').className = 'good';
     $('correctness').textContent = !result.check ? 'Correctness: DISABLED' : result.check.passed ? 'Correctness: PASS' : `Correctness: FAIL — ${result.check.count} mismatches, ${result.check.nonfinite} nonfinite pairs`;
@@ -133,17 +134,16 @@ async function run() {
 }
 $('run').onclick = run;
 $('reload').onclick = loadSource;
-$('editor').addEventListener('input', () => { sourceStatus(); resetConfirmation(); $('reflection').textContent = 'Source changed — inspect again for current requirements.'; });
-$('parameters').addEventListener('input', () => { updateParameters(); resetConfirmation(); });
-for (const id of ['entry','dispatch','dx','dy','dz','constants']) $(id).addEventListener('input', resetConfirmation);
+$('editor').addEventListener('input', () => { sourceStatus(); $('reflection').textContent = 'Source changed — inspect again for current requirements.'; });
+$('parameters').addEventListener('input', () => { updateParameters(); });
 $('dispatch').addEventListener('change', updateDispatch);
 $('reflect').onclick = inspect;
-$('add').onclick = () => { addResource(); resetConfirmation(); };
+$('add').onclick = () => { addResource(); };
 $('save').onclick = () => { download(sourceName.split('/').pop() || 'shader.wgsl', $('editor').value, 'text/plain'); downloaded = true; sourceStatus(); };
 $('open').onchange = async event => {
   const file = event.target.files[0]; if (!file) return;
   if ($('editor').value !== baseline && !confirm('Discard unsaved editor changes?')) return;
-  baseline = await file.text(); sourceName = file.name; downloaded = false; $('editor').value = baseline; sourceStatus(); resetConfirmation(); inspect(); event.target.value = '';
+  baseline = await file.text(); sourceName = file.name; downloaded = false; $('editor').value = baseline; sourceStatus(); inspect(); event.target.value = '';
 };
 $('export').onclick = () => { try { download('kernel-config.json', JSON.stringify(readConfig(), null, 2)); } catch (e) { message(e); } };
 $('import').onchange = async event => { try { const file = event.target.files[0]; if (file) applyConfig(JSON.parse(await file.text())); } catch (e) { message(e); } finally { event.target.value = ''; } };
@@ -152,8 +152,15 @@ $('load-preset').onclick = async () => {
   try { const response = await fetch(`configs/${$('preset').value}.json`); if (!response.ok) throw Error('Preset fetch failed'); applyConfig(await response.json()); } catch (e) { message(e); }
 };
 try {
-  const response = await fetch('configs/copy.json'); if (!response.ok) throw Error('Preset fetch failed');
-  const initial = await response.json(); initial.check.mode = 'disabled'; applyConfig(initial);
+  const query = new URLSearchParams(location.search);
+  const preset = query.get('config');
+  if (preset && [...$('preset').options].some(o => o.value === preset)) $('preset').value = preset;
+  const source = query.get('source');
+  if (source && [...$('source').options].some(o => o.value === source)) $('source').value = source;
+  const response = await fetch(`configs/${$('preset').value}.json`); if (!response.ok) throw Error('Preset fetch failed');
+  const initial = await response.json();
+  if (!preset) initial.check.mode = 'disabled';
+  applyConfig(initial);
   await loadSource(); await runner.init(); $('status').textContent = 'WebGPU ready';
 } catch (e) { message(e); $('status').textContent = 'Initialization failed'; }
 window.addEventListener('beforeunload', event => {
