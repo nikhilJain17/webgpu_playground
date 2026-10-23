@@ -4,6 +4,7 @@
 
 const WORKGROUP_SIZE = 4u; // num of threads in a workgroup
 const GROUP_SIZE = 8u; // num of data in a group_norm's group
+const epsilon = 1e-6;
 
 // Scratchpad for partial sums, variances, etc
 var<workgroup> partials: array<f32, WORKGROUP_SIZE>;
@@ -60,7 +61,6 @@ fn main(
     if (gid.x < arrayLength(&input)) {
         let starting_offset = u32(GROUP_SIZE * group.x);
         var partial_sq_dev : f32 = 0.0f;
-        // let mean = partials[starting_offset];
         for (var i = 0u; i < GROUP_SIZE / WORKGROUP_SIZE; i++) {
             partial_sq_dev += 
                 (input[starting_offset + lane + (i * WORKGROUP_SIZE)] - mean)
@@ -82,8 +82,21 @@ fn main(
             total_sum += partials[i];
         }
         variance = total_sum / f32(GROUP_SIZE);
-        output[gid.x] = variance;
     } 
 
+    //-------------------------------------
+    // barrier for protecting variance 
+    workgroupBarrier();
+    //-------------------------------------
 
+    // Seventh milestone: Write final group norm as y = (x-mean)/√(variance+ϵ).
+    if (gid.x < arrayLength(&input)) {
+        let starting_offset = u32(GROUP_SIZE * group.x);
+        var group_norm : f32 = 0.0f;
+        for (var i = 0u; i < GROUP_SIZE / WORKGROUP_SIZE; i++) {
+            let index = starting_offset + lane + (i * WORKGROUP_SIZE);
+            let x = input[index];
+            output[index] = (x - mean) / (sqrt(variance + epsilon));
+        }
+    }
 }
