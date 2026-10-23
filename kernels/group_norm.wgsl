@@ -1,95 +1,32 @@
+// Input buffer: TODO change dtype
+@group(0) @binding(0) var<storage, read> input : array<f32>;
+@group(0) @binding(2) var<storage, read_write> output : array<f32>;
 
-// Declare input and output arrays
-@group(0) @binding(0) var<storage, read>       input:  array<f32>;
-// @group(0) @binding(1) var<storage, read>       input2:  array<f32>;
-@group(0) @binding(2) var<storage, read_write> output: array<f32>;
+const WORKGROUP_SIZE = 4u; // num of threads in a workgroup
+const GROUP_SIZE = 8u; // num of data in a group_norm's group
 
-// declare shared_mem memory same as workgroup size
-// each thread gets an array slot
-var<workgroup> shared_mem: array<f32, 64>;
-var<workgroup> sum: f32;
-var<workgroup> mean: f32;
-var<workgroup> shared_sq_dev: array<f32, 64>;
-var<workgroup> variance: f32;
-
-// Simply double each element
-@compute @workgroup_size(64)
+var<workgroup> partials: array<f32, WORKGROUP_SIZE>;
+// TODO: paramterize workgroup size
+@compute @workgroup_size(WORKGROUP_SIZE)
 fn main(
-    @builtin(local_invocation_index) local_index: u32
+    @builtin(workgroup_id) group: vec3<u32>,
+    @builtin(local_invocation_index) lane: u32,
+    @builtin(global_invocation_id) gid: vec3<u32>
 ) {
-    // 1. Calculate parallel sum
-    // Initialize shared_mem memory
-    if (local_index < arrayLength(&input)) {
-        shared_mem[local_index] = input[local_index];
+    // First milestone: copy this group's elements.
+    // Second milestone: calculate partial sums per workgroup.
+    // Each thread should:
+        // 1. Calculate its group’s starting offset.
+        // 2. Read its two assigned elements.
+        // 3. Add them.
+        // 4. Write its partial sum into a unique output slot.
+    // Third milestone: parameterize with WORKGROUP_SIZE and GROUP_SIZE
+    if (gid.x >= arrayLength(&input)) { return; }
+    let starting_offset = u32(GROUP_SIZE * group.x);
+    var sum : f32 = 0.0f;
+    for (var i = 0u; i < GROUP_SIZE / WORKGROUP_SIZE; i++) {
+        sum += input[starting_offset + lane + (i * WORKGROUP_SIZE)];
     }
-    workgroupBarrier();
-    // Reduce array by half every time
-    for (var i: u32 = 0u; i < u32(log2(f32(arrayLength(&input)))); i++) {
-        // Add even-numbered indices with their neighbors
-        // and store into index/2 every iteration,
-        // dividing the size of the task by 2.
-        var local: f32 = 0;
-        var write_idx: u32 = local_index;
-        // Do all the reads
-        if (local_index < arrayLength(&input) / u32(pow(2f,f32(i))) && local_index % 2 == 0) {
-            // read
-            local = shared_mem[local_index] + shared_mem[local_index + 1];
-        }
-        // Barrier
-        workgroupBarrier();
-        // Do all the writes
-        if (local_index < arrayLength(&input) / u32(pow(2f,f32(i))) && local_index % 2 == 0) {
-            // write
-            write_idx = local_index / 2;
-            shared_mem[write_idx] = local;
-        }
-        // Barrier
-        workgroupBarrier();
-    }
-    workgroupBarrier();
-    
-    // 2. Calculate parallel mean from parallel sum
-    // TODO: Should every thread do this division?
-    // or one thread do it and everyone waits for it to be done?
-    sum = shared_mem[0];
-    mean = sum / f32(arrayLength(&input));
-    shared_mem[1] = mean; 
-    
-    // 3. Calculate parallel variance from parallel sum
-    if (local_index < arrayLength(&input)) {
-        shared_sq_dev[local_index] = pow(input[local_index] - mean, 2);
-    }
-    // parallel sum again
-        for (var i: u32 = 0u; i < u32(log2(f32(arrayLength(&input)))); i++) {
-        // Add even-numbered indices with their neighbors
-        // and store into index/2 every iteration,
-        // dividing the size of the task by 2.
-        var local: f32 = 0;
-        var write_idx: u32 = local_index;
-        // Do all the reads
-        if (local_index < arrayLength(&input) / u32(pow(2f,f32(i))) && local_index % 2 == 0) {
-            // read
-            local = shared_sq_dev[local_index] + shared_sq_dev[local_index + 1];
-        }
-        // Barrier
-        workgroupBarrier();
-        // Do all the writes
-        if (local_index < arrayLength(&input) / u32(pow(2f,f32(i))) && local_index % 2 == 0) {
-            // write
-            write_idx = local_index / 2;
-            shared_sq_dev[write_idx] = local;
-        }
-        // Barrier
-        workgroupBarrier();
-    }
-    workgroupBarrier();
-    // TODO: Should every thread do this division?
-    // or one thread do it and everyone waits for it to be done?
-    variance = shared_sq_dev[0] / f32(arrayLength(&input)); 
-
-    // 4. Calculate element-wise formula
-    if (local_index < arrayLength(&input)) {
-        output[local_index] = (input[local_index] - mean) / pow(variance - 0.0005, 0.5);
-    }
-
+    partials[lane] = sum;
+    output[gid.x] = sum;
 }

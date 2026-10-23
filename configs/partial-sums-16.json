@@ -1,0 +1,63 @@
+{
+  "entryPoint": "main",
+  "parameters": {
+    "N": 16
+  },
+  "resources": [
+    {
+      "group": 0,
+      "binding": 0,
+      "kind": "storage",
+      "access": "read",
+      "role": "input",
+      "type": "f32",
+      "length": "N",
+      "init": "values",
+      "readback": true,
+      "values": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ]
+    },
+    {
+      "group": 0,
+      "binding": 2,
+      "kind": "storage",
+      "access": "read_write",
+      "role": "output",
+      "type": "f32",
+      "length": 8,
+      "init": "zero",
+      "readback": true
+    }
+  ],
+  "dispatch": {
+    "mode": "explicit",
+    "workgroups": [
+      2,
+      1,
+      1
+    ]
+  },
+  "check": {
+    "mode": "disabled",
+    "input": "0:0",
+    "output": "0:2",
+    "atol": 0,
+    "rtol": 0
+  }
+}
