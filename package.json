@@ -6,7 +6,8 @@
     "start": "python3 -m http.server 8080",
     "test": "node --test tests/core.test.js",
     "test:browser": "node tests/browser.mjs",
-    "test:group-norm": "node tests/group-norm-browser.mjs"
+    "test:group-norm": "node tests/group-norm-browser.mjs",
+    "test:group-norm-20": "node tests/group-norm-browser.mjs 20"
   },
   "dependencies": {
     "wgsl_reflect": "1.6.0"

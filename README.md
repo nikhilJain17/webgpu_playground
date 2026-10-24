@@ -193,3 +193,26 @@ The leftover `output[gid.x] = variance;` write remains in that source: workgroup
 writes variance at output index 4 while workgroup 0 writes normalized output
 there. Workgroup barriers cannot synchronize these separate workgroups. A pass
 in one execution does not prove race freedom. The harness leaves this fix to you.
+
+## External group norm: 20-element test
+
+Import `configs/group-norm-20.json`, or choose **Group norm — 1…20, two groups of ten**.
+This is separate from the 16-element preset. It uses F32 input 1…20 at binding
+0:0, 20 zero-initialized F32 outputs with readback at 0:2, and explicit dispatch
+2 × 1 × 1. Reference parameters are batch 1, channels 2, spatial [10], groups 2,
+epsilon 1e-6. Absolute/relative tolerances remain 1e-5. Expected means are
+5.5 and 15.5; population variances are 8.25 and 8.25.
+
+Run `npm run test:group-norm-20` to verify the current external shader in Chrome.
+The script loads the source only for execution, source-identity checks and hashing;
+it does not review or alter the kernel. Reports include every expected/actual
+value, mismatching indices, nonfinite counts and execution errors, separately
+from numerical results. A successful test-command exit verifies the harness;
+consult `correctness` in the report for kernel correctness.
+
+Verification on Chrome 155 / Apple Metal for source SHA-256
+`6340c2c91d4cecd79683d17c595b4293971ee9b5b4c07ddf4c08c4084a8d2a83`:
+20 GPU runs executed successfully, all 20 failed numerical comparison. The UI
+reported 20 mismatches and zero nonfinite pairs. Details are in
+`test-results/group-norm-20.json`; screenshot: `test-results/group-norm-20.png`.
+No kernel diagnosis or fix was performed.
