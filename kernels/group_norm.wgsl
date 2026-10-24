@@ -3,7 +3,7 @@
 @group(0) @binding(2) var<storage, read_write> output : array<f32>;
 
 override WORKGROUP_SIZE: u32 = 4u; // num of threads in a workgroup
-const GROUP_SIZE = 10u; // num of data in a group_norm's group
+const GROUP_SIZE = 3u; // num of data in a group_norm's group
 const epsilon = 1e-6;
 
 // Scratchpad for partial sums, variances, etc
@@ -27,14 +27,12 @@ fn main(
     // Third milestone: parameterize with WORKGROUP_SIZE and GROUP_SIZE
     // Eight milestone: allow workgroup sizes that don't exactly divide
     // the input size
-    if (gid.x < arrayLength(&input)) {
-        var partial_sum : f32 = 0.0f;
-        let starting_offset = u32(GROUP_SIZE * workgroup_id.x + lane);
-        for (var i = starting_offset; i < GROUP_SIZE * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
-            partial_sum += input[i];
-        }
-        partials[lane] = partial_sum;
+    var partial_sum : f32 = 0.0f;
+    let starting_offset = u32(GROUP_SIZE * workgroup_id.x + lane);
+    for (var i = starting_offset; i < GROUP_SIZE * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
+        partial_sum += input[i];
     }
+    partials[lane] = partial_sum;
 
     //-------------------------------------
     // barrier for protecting partials
@@ -58,14 +56,11 @@ fn main(
 
     // Fifth milestone: Each thread sums (x - mean)^2 over same two elements it owns,
     // and writes that partial to debug output.
-    if (gid.x < arrayLength(&input)) {
-        var partial_sq_dev : f32 = 0.0f;
-        let starting_offset = u32(GROUP_SIZE * workgroup_id.x + lane);
-        for (var i = starting_offset; i < GROUP_SIZE * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
-            partial_sq_dev += (input[i] - mean) * (input[i] - mean);
-        }
-        partials[lane] = partial_sq_dev;
+    var partial_sq_dev : f32 = 0.0f;
+    for (var i = starting_offset; i < GROUP_SIZE * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
+        partial_sq_dev += (input[i] - mean) * (input[i] - mean);
     }
+    partials[lane] = partial_sq_dev;
 
     //-------------------------------------
     // barrier for protecting partials
@@ -88,13 +83,10 @@ fn main(
     //-------------------------------------
 
     // Seventh milestone: Write final group norm as y = (x-mean)/√(variance+ϵ).
-    if (gid.x < arrayLength(&input)) {
-        var group_norm : f32 = 0.0f;
-        let starting_offset = u32(GROUP_SIZE * workgroup_id.x + lane);
-        for (var i = starting_offset; i < GROUP_SIZE * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
-            let x = input[i];
-            output[i] = (x - mean) / (sqrt(variance + epsilon));
-        }
+    var group_norm : f32 = 0.0f;
+    for (var i = starting_offset; i < GROUP_SIZE * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
+        let x = input[i];
+        output[i] = (x - mean) / (sqrt(variance + epsilon));
     }
 
 
