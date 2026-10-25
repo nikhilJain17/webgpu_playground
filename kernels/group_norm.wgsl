@@ -1,9 +1,15 @@
 
 override WORKGROUP_SIZE: u32 = 4u; // num of threads in a workgroup
 
-// Tenth milestone: Parameterize params.epsilong and group size
+// Tenth milestone: Parameterize params.epsilon and group size
+// Eleventh milestone: parameterize based on what ggml will actually give us.
 struct Params {
-    group_size: u32,
+    width: u32,
+    height: u32,
+    num_channels: u32,
+    batch_size: u32,
+    // number of groups to do group norm over, NOT workgroup size!
+    num_groups: u32,
     epsilon: f32,
 };
 
@@ -32,9 +38,22 @@ fn main(
     // Third milestone: parameterize with WORKGROUP_SIZE and params.group_size
     // Eight milestone: allow workgroup sizes that don't exactly divide
     // the input size
+
+    // Eleventh milestone: calculate which elements we operate on based on inputs
+    let batch_index = workgroup_id.x / params.num_groups;
+    let group_index = workgroup_id.x % params.num_groups;
+    
+    let channels_per_group = u32(ceil(f32(params.num_channels) / f32(params.num_groups)));
+    let first_channel = group_index * channels_per_group;
+    let last_channel = min(first_channel + channels_per_group, params.num_channels);
+    
+    let num_elems_per_group = (last_channel - first_channel) * params.width * params.height;
+    let batch_base = batch_index * params.width * params.height * params.num_channels;
+    let group_base = batch_base + first_channel * params.width * params.height;
+
     var partial_sum : f32 = 0.0f;
-    let starting_offset = u32(params.group_size * workgroup_id.x + lane);
-    for (var i = starting_offset; i < params.group_size * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
+    let starting_offset = group_base + lane; 
+    for (var i = starting_offset; i < group_base + num_elems_per_group; i += WORKGROUP_SIZE) {
         partial_sum += input[i];
     }
     partials[lane] = partial_sum;
@@ -51,7 +70,7 @@ fn main(
         for (var i: u32 = 0u; i < WORKGROUP_SIZE; i++) {
             total_sum += partials[i];
         }
-        mean = total_sum / f32(params.group_size);
+        mean = total_sum / f32(num_elems_per_group); 
     }
 
     //-------------------------------------
@@ -62,7 +81,7 @@ fn main(
     // Fifth milestone: Each thread sums (x - mean)^2 over same two elements it owns,
     // and writes that partial to debug output.
     var partial_sq_dev : f32 = 0.0f;
-    for (var i = starting_offset; i < params.group_size * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
+    for (var i = starting_offset; i < group_base + num_elems_per_group; i += WORKGROUP_SIZE) {
         partial_sq_dev += (input[i] - mean) * (input[i] - mean);
     }
     partials[lane] = partial_sq_dev;
@@ -79,7 +98,7 @@ fn main(
         for (var i = 0u; i < WORKGROUP_SIZE; i++) {
             total_sum += partials[i];
         }
-        variance = total_sum / f32(params.group_size);
+        variance = total_sum / f32(num_elems_per_group);
     } 
 
     //-------------------------------------
@@ -89,7 +108,7 @@ fn main(
 
     // Seventh milestone: Write final group norm as y = (x-mean)/√(variance+ϵ).
     var group_norm : f32 = 0.0f;
-    for (var i = starting_offset; i < params.group_size * (workgroup_id.x + 1u); i += WORKGROUP_SIZE) {
+    for (var i = starting_offset; i < group_base + num_elems_per_group; i += WORKGROUP_SIZE) {
         let x = input[i];
         output[i] = (x - mean) / (sqrt(variance + params.epsilon));
     }
