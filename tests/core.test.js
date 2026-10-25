@@ -46,3 +46,44 @@ test('group preset runs without confirmation and supports disabled intermediate 
   assert.equal(prepare(c,reflect(source,'main')).p.N,64);
   c.check.mode='disabled'; assert.equal(prepare(c,reflect(source,'main')).p.N,64);
 });
+test('named spatial dimensions drive sequential inputs, output sizes and uniform packing together', () => {
+  for (const size of [3,8,10]) {
+    const c=JSON.parse(fs.readFileSync(new URL(`../configs/group-norm-uniform-${size}.json`,import.meta.url)));
+    for (const groupSize of [size,5]) {
+      c.parameters.group_size=groupSize;
+      c.parameters.spatial=['group_size'];
+      c.resources[0].init='sequential';
+      const p=parameters(c.parameters);
+      assert.deepEqual(p.spatial,[groupSize]);assert.equal(p.N,2*groupSize);
+      const input=bufferData(c.resources[0],p),uniform=bufferData(c.resources[1],p),output=bufferData(c.resources[2],p);
+      assert.deepEqual(Array.from(input),Array.from({length:p.N},(_,i)=>i+1));
+      assert.equal(output.length,p.N);assert.ok(output.every(v=>v===0));
+      const view=new DataView(uniform.buffer);assert.equal(uniform.byteLength,16);
+      assert.equal(view.getUint32(0,true),groupSize);assert.equal(view.getFloat32(4,true),Math.fround(p.epsilon));
+      const ref=groupNorm(input,c.parameters);
+      assert.deepEqual(ref.means,[(groupSize+1)/2,(3*groupSize+1)/2]);
+      assert.ok(ref.variances.every(v=>Math.abs(v-(groupSize**2-1)/12)<1e-12));
+    }
+  }
+  assert.throws(()=>parameters({batch:1,channels:2,groups:2,epsilon:1e-6,spatial:['missing']}),/spatial dimension/);
+});
+test('ceiling channel partitions reset at each batch and normalize 16/16/8 elements', () => {
+  const c=JSON.parse(fs.readFileSync(new URL('../configs/group-norm-ceil-80.json',import.meta.url)));
+  const p=parameters(c.parameters), input=bufferData(c.resources[0],p), r=groupNorm(input,c.parameters);
+  assert.equal(p.N,80);assert.deepEqual(p.spatial,[2,2]);
+  assert.deepEqual(r.means,[8.5,24.5,36.5,48.5,64.5,76.5]);
+  assert.deepEqual(r.variances,[21.25,21.25,5.25,21.25,21.25,5.25]);
+  const spans=[[0,16],[16,32],[32,40],[40,56],[56,72],[72,80]];
+  spans.forEach(([start,end],g)=>{
+    for(let i=start;i<end;i++) assert.ok(Math.abs(r.output[i]-(i+1-r.means[g])/Math.sqrt(r.variances[g]+1e-6))<1e-12);
+  });
+  assert.ok(compare(groupNorm(new Float32Array(80).fill(7),c.parameters).output,new Float32Array(80)).passed);
+  assert.throws(()=>parameters({...c.parameters,partition:'equal'}),/divisible/);
+  assert.throws(()=>parameters({...c.parameters,channels:5,groups:4}),/empty group/);
+  const uniform=bufferData(c.resources[1],p),view=new DataView(uniform.buffer);
+  assert.equal(uniform.byteLength,32);
+  [2,2,10,2,3].forEach((value,i)=>assert.equal(view.getUint32(i*4,true),value));
+  assert.equal(view.getFloat32(20,true),Math.fround(1e-6));
+  assert.ok(new Uint8Array(uniform.buffer,24).every(v=>v===0));
+  assert.deepEqual(c.dispatch.workgroups,[6,1,1]);assert.equal(c.constants.WORKGROUP_SIZE,4);
+});

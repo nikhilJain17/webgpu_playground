@@ -1,0 +1,183 @@
+{
+  "entryPoint": "main",
+  "parameters": {
+    "width": 2,
+    "height": 2,
+    "batch": 2,
+    "channels": 10,
+    "spatial": [
+      "height",
+      "width"
+    ],
+    "groups": 3,
+    "partition": "ceil",
+    "epsilon": 1e-06
+  },
+  "resources": [
+    {
+      "group": 0,
+      "binding": 0,
+      "kind": "storage",
+      "access": "read",
+      "role": "input",
+      "type": "f32",
+      "length": "N",
+      "init": "values",
+      "readback": true,
+      "values": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80
+      ]
+    },
+    {
+      "group": 0,
+      "binding": 1,
+      "kind": "uniform",
+      "access": "read",
+      "role": "uniform",
+      "type": "u32",
+      "length": 8,
+      "init": "fields",
+      "fields": [
+        {
+          "offset": 0,
+          "type": "u32",
+          "value": "width"
+        },
+        {
+          "offset": 4,
+          "type": "u32",
+          "value": "height"
+        },
+        {
+          "offset": 8,
+          "type": "u32",
+          "value": "channels"
+        },
+        {
+          "offset": 12,
+          "type": "u32",
+          "value": "batch"
+        },
+        {
+          "offset": 16,
+          "type": "u32",
+          "value": "groups"
+        },
+        {
+          "offset": 20,
+          "type": "f32",
+          "value": "epsilon"
+        }
+      ],
+      "readback": true
+    },
+    {
+      "group": 0,
+      "binding": 2,
+      "kind": "storage",
+      "access": "read_write",
+      "role": "output",
+      "type": "f32",
+      "length": "N",
+      "init": "zero",
+      "readback": true
+    }
+  ],
+  "dispatch": {
+    "mode": "explicit",
+    "workgroups": [
+      6,
+      1,
+      1
+    ]
+  },
+  "check": {
+    "mode": "group-norm",
+    "input": "0:0",
+    "output": "0:2",
+    "atol": 1e-05,
+    "rtol": 1e-05
+  },
+  "constants": {
+    "WORKGROUP_SIZE": 4
+  }
+}

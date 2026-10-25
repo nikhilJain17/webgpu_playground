@@ -216,3 +216,30 @@ Verification on Chrome 155 / Apple Metal for source SHA-256
 reported 20 mismatches and zero nonfinite pairs. Details are in
 `test-results/group-norm-20.json`; screenshot: `test-results/group-norm-20.png`.
 No kernel diagnosis or fix was performed.
+
+## Uneven channel groups: 80-element shape test
+
+Import `configs/group-norm-ceil-80.json` for width 2, height 2, channels 10,
+batch 2, and three normalization groups per batch item. Save editor changes and
+refresh once to load the extended CPU reference before importing this preset.
+It uses inputs 1…80, 80 F32 outputs, explicit dispatch `[6,1,1]`, override
+`WORKGROUP_SIZE=4`, epsilon `1e-6`, and the existing `1e-5` absolute/relative tolerances.
+
+The explicit parameter `partition: "ceil"` selects channel blocks of
+`ceil(channels/groups)` channels, clipping the last block to the batch item's
+channel count. This gives **4,4,2 channels** or **16,16,8 elements**, restarted
+independently for each batch item. Default `partition: "equal"` retains the
+previous divisibility constraint. Configurations producing empty groups are
+rejected. The reference remains a double-precision two-pass population-variance
+calculation over F32 input; no affine scale or bias is applied.
+
+The declared Params fields are packed into a 32-byte uniform allocation:
+width/u32 at 0, height/u32 at 4, num_channels/u32 at 8, batch_size/u32 at 12,
+num_groups/u32 at 16, epsilon/f32 at 20; trailing bytes are zero. Values refer to
+shared config parameters, and spatial dimensions refer to height and width.
+
+CPU-reference tests verify means `[8.5,24.5,36.5,48.5,64.5,76.5]` and variances
+`[21.25,21.25,5.25,21.25,21.25,5.25]`, every normalized value, batch boundaries,
+zero variance, uniform packing and preserved equal-partition validation.
+Run `npm test` for these checks. Shader execution is left to manual testing;
+the external kernel was not changed.

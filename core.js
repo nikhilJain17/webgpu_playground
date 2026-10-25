@@ -9,10 +9,15 @@ export function parameters(p) {
   if ('batch' in p) {
     for (const k of ['batch', 'channels', 'groups']) integer(p[k], k);
     if (!Array.isArray(p.spatial) || !p.spatial.length) throw Error('spatial must contain positive dimensions');
-    const spatialSize = p.spatial.reduce((a, b) => a * integer(b, 'spatial dimension'), 1);
-    if (p.channels % p.groups) throw Error('channels must be divisible by groups');
+    const spatial = p.spatial.map(d => integer(typeof d === 'string' ? p[d] : d, 'spatial dimension'));
+    const spatialSize = spatial.reduce((a, b) => a * b, 1);
+    const partition = p.partition ?? 'equal';
+    if (!['equal', 'ceil'].includes(partition)) throw Error('partition must be equal or ceil');
+    if (partition === 'equal' && p.channels % p.groups) throw Error('channels must be divisible by groups');
+    const channelsPerGroup = partition === 'ceil' ? Math.ceil(p.channels / p.groups) : p.channels / p.groups;
+    if ((p.groups - 1) * channelsPerGroup >= p.channels) throw Error('Channel partition would contain an empty group');
     if (!Number.isFinite(p.epsilon) || p.epsilon <= 0) throw Error('epsilon must be positive and finite');
-    return { ...p, spatialSize, N: integer(p.batch * p.channels * spatialSize, 'N') };
+    return { ...p, partition, channelsPerGroup, spatial, spatialSize, N: integer(p.batch * p.channels * spatialSize, 'N') };
   }
   return { ...p, N: integer(p.N, 'N') };
 }
@@ -60,6 +65,7 @@ export function bufferData(r, p) {
   if (count > 16 * 1024 * 1024) throw Error('Buffer exceeds playground limit of 16M scalar elements');
   const data = new Type(count);
   if (r.init === 'deterministic') for (let i = 0; i < count; i++) data[i] = ((i * 17 % 101) - 50) / 8;
+  else if (r.init === 'sequential') for (let i = 0; i < count; i++) data[i] = i + 1;
   else if (r.init === 'values') {
     if (!Array.isArray(r.values) || r.values.length !== count || !r.values.every(Number.isFinite)) throw Error(`${keyOf(r)}: provide exactly ${count} finite values`);
     data.set(r.values);
@@ -115,9 +121,13 @@ export function prepare(config, reflected, limits = {}) {
 export function groupNorm(input, raw) {
   const p = parameters(raw);
   if (input.length !== p.N) throw Error('Reference input length does not match dimensions');
-  const width = p.channels / p.groups * p.spatialSize;
+
   const output = new Float64Array(p.N), means = [], variances = [];
-  for (let start = 0; start < p.N; start += width) {
+  for (let batch = 0; batch < p.batch; batch++) {
+   for (let group = 0; group < p.groups; group++) {
+    const firstChannel = group * p.channelsPerGroup;
+    const width = Math.min(p.channelsPerGroup, p.channels - firstChannel) * p.spatialSize;
+    const start = (batch * p.channels + firstChannel) * p.spatialSize;
     let mean = 0;
     for (let i = 0; i < width; i++) mean += input[start + i];
     mean /= width;
@@ -126,6 +136,7 @@ export function groupNorm(input, raw) {
     variance /= width;
     means.push(mean); variances.push(variance);
     for (let i = 0; i < width; i++) output[start + i] = (input[start + i] - mean) / Math.sqrt(variance + p.epsilon);
+  }
   }
   return { output, means, variances };
 }

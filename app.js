@@ -21,7 +21,7 @@ function download(name, text, type = 'application/json') {
 function addResource(resource = { group: 0, binding: 0, kind: 'storage', access: 'read', role: 'input', type: 'f32', length: 'N', init: 'deterministic', readback: false }) {
   const div = document.createElement('div'); div.className = 'resource';
   div.innerHTML = `<div class="grid"></div><details><summary>Initial values / packed fields (JSON)</summary><textarea class="extra" rows="3" spellcheck="false"></textarea><p>Values: {"values":[1,2]}. Fields: {"fields":[{"offset":0,"type":"u32","value":"channels"}]}. Offsets are bytes; follow the reflected WGSL layout, including padding.</p></details><button class="remove">Remove resource</button>`;
-  const choices = { kind: ['storage','uniform'], access: ['read','read_write'], role: ['input','output','debug','uniform'], type: ['f32','u32','i32'], init: ['deterministic','zero','values','fields'] };
+  const choices = { kind: ['storage','uniform'], access: ['read','read_write'], role: ['input','output','debug','uniform'], type: ['f32','u32','i32'], init: ['deterministic','sequential','zero','values','fields'] };
   for (const field of ['group','binding','kind','access','role','type','length','init','readback']) {
     const label = document.createElement('label'); label.textContent = field;
     const control = document.createElement(choices[field] ? 'select' : 'input'); control.dataset.field = field;
@@ -68,7 +68,7 @@ function applyConfig(config) {
 }
 function updateDispatch() { $('explicit').hidden = $('dispatch').value !== 'explicit'; $('explicit').style.display = $('explicit').hidden ? 'none' : 'flex'; }
 function updateParameters() {
-  try { const p = parameters(JSON.parse($('parameters').value)); $('parameter-summary').textContent = `N = ${p.N}${p.batch ? `; ${p.batch * p.groups} normalization groups, ${p.channels / p.groups * p.spatialSize} elements each; epsilon = ${p.epsilon}. Choose explicit dispatch to match your algorithm.` : ''}`; }
+  try { const p = parameters(JSON.parse($('parameters').value)); $('parameter-summary').textContent = `N = ${p.N}${p.batch ? `; ${p.batch * p.groups} normalization groups, ${p.partition} channel partition; up to ${p.channelsPerGroup * p.spatialSize} elements per group; epsilon = ${p.epsilon}. Choose explicit dispatch to match your algorithm.` : ''}`; }
   catch (e) { $('parameter-summary').textContent = e.message; }
 }
 function layout(type, prefix = '') {

@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 const count = Number(process.argv[2] || 16);
-assert.ok([16,20].includes(count), 'Choose the 16- or 20-element preset');
+assert.ok([6,16,20].includes(count), 'Choose the 6-, 16- or 20-element preset');
 const preset = `group-norm-${count}`;
 const width = count / 2;
 const sourcePath = '../stable-diffusion.cpp/ggml/src/ggml-webgpu/wgsl-shaders/group_norm.wgsl';

@@ -7,7 +7,9 @@
     "test": "node --test tests/core.test.js",
     "test:browser": "node tests/browser.mjs",
     "test:group-norm": "node tests/group-norm-browser.mjs",
-    "test:group-norm-20": "node tests/group-norm-browser.mjs 20"
+    "test:group-norm-20": "node tests/group-norm-browser.mjs 20",
+    "test:group-norm-6": "node tests/group-norm-browser.mjs 6",
+    "test:group-norm-uniforms": "node tests/group-norm-uniforms-browser.mjs"
   },
   "dependencies": {
     "wgsl_reflect": "1.6.0"
