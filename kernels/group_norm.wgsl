@@ -89,6 +89,16 @@ fn main(
     let batch_base = params.input_offset + batch_index * params.batch_stride;
     let group_base = batch_base + first_channel * params.channel_stride;
 
+    // Thirteenth milestone: defensive checks if we have more workgroups than data
+    // and can exit workgroups early. 
+    if (first_channel >= params.num_channels) {
+        return;
+    }
+
+    if (batch_index >= params.batch_size) {
+        return;
+    }
+
     var partial_sum : f32 = 0.0f;
     // let starting_offset = group_base + lane; 
     for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
