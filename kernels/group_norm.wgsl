@@ -11,10 +11,16 @@ struct Params {
     // number of groups to do group norm over, NOT workgroup size!
     num_groups: u32,
     epsilon: f32,
+    // input strides
     row_stride: u32,
     col_stride: u32,
     channel_stride: u32,
     batch_stride: u32,
+    // output strides
+    output_row_stride: u32,
+    output_col_stride: u32,
+    output_channel_stride: u32,
+    output_batch_stride: u32
 };
 
 // Input buffer: TODO change dtype
@@ -39,6 +45,16 @@ fn input_index(logical_position: u32, group_base: u32) -> u32 {
         + (row * params.row_stride) 
         + (col * params.col_stride)
         + (channel * params.channel_stride);
+}
+
+fn output_index(logical_position: u32, group_base: u32) -> u32 {
+    let col: u32 = logical_position % params.width;
+    let row: u32 = (logical_position / params.width) % params.height;
+    let channel: u32 = (logical_position / params.width) / params.height;
+    return group_base 
+        + (row * params.output_row_stride) 
+        + (col * params.output_col_stride)
+        + (channel * params.output_channel_stride);
 }
 
 @compute @workgroup_size(WORKGROUP_SIZE)
@@ -131,10 +147,11 @@ fn main(
     for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
         // Twelfth milestone: implement strides (i.e. for views)
         let x = input[input_index(i, group_base)];
+        // find group index
         let output_group_base =
-            (batch_index * params.num_channels + first_channel)
-            * params.width * params.height;
-        output[output_group_base + i] = (x - mean) / (sqrt(variance + params.epsilon));
+            batch_index * params.output_batch_stride
+            + first_channel * params.output_channel_stride;
+        output[output_index(i, output_group_base)] = (x - mean) / (sqrt(variance + params.epsilon));
     }
 
 

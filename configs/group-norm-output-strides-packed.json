@@ -1,0 +1,277 @@
+{
+  "entryPoint": "main",
+  "parameters": {
+    "width": 2,
+    "height": 2,
+    "batch": 2,
+    "channels": 10,
+    "spatial": [
+      "height",
+      "width"
+    ],
+    "groups": 3,
+    "partition": "ceil",
+    "epsilon": 1e-06,
+    "col_stride": 1,
+    "row_stride": 2,
+    "channel_stride": 4,
+    "batch_stride": 40,
+    "output_col_stride": 1,
+    "output_row_stride": 2,
+    "output_channel_stride": 4,
+    "output_batch_stride": 40
+  },
+  "resources": [
+    {
+      "group": 0,
+      "binding": 0,
+      "kind": "storage",
+      "access": "read",
+      "role": "input",
+      "type": "f32",
+      "length": "N",
+      "init": "values",
+      "readback": true,
+      "values": [
+        -1.893585205078125,
+        0.9078270792961121,
+        1.7759321928024292,
+        -0.22962024807929993,
+        0.5972294807434082,
+        1.3844516277313232,
+        1.4054392576217651,
+        0.45981743931770325,
+        -0.4839651882648468,
+        1.895414113998413,
+        -0.3992111384868622,
+        -0.17247918248176575,
+        1.0868319272994995,
+        1.027793288230896,
+        -0.04811406508088112,
+        -1.3904292583465576,
+        10.23065185546875,
+        19.979679107666016,
+        13.429243087768555,
+        11.253496170043945,
+        16.636337280273438,
+        10.550689697265625,
+        13.365494728088379,
+        14.05239486694336,
+        15.550965309143066,
+        14.431466102600098,
+        14.730463027954102,
+        17.361427307128906,
+        10.05508804321289,
+        12.487838745117188,
+        13.584744453430176,
+        12.095118522644043,
+        -3.724259614944458,
+        -3.3992412090301514,
+        -2.261120080947876,
+        -2.604945182800293,
+        -3.763519525527954,
+        -1.9618816375732422,
+        -3.2574379444122314,
+        -3.8070085048675537,
+        5.70314359664917,
+        5.998501777648926,
+        9.01430606842041,
+        6.063648223876953,
+        8.217833518981934,
+        6.4778218269348145,
+        6.952517509460449,
+        5.062965393066406,
+        6.49080753326416,
+        7.545566558837891,
+        5.982820987701416,
+        5.35687780380249,
+        6.692599773406982,
+        5.066385746002197,
+        6.29815149307251,
+        5.913168907165527,
+        -5.8084635734558105,
+        -5.8919196128845215,
+        -6.103879451751709,
+        -5.970387935638428,
+        6.035580635070801,
+        -5.844793796539307,
+        -6.077758312225342,
+        6.176039695739746,
+        -6.198333740234375,
+        5.952596664428711,
+        -6.044498920440674,
+        5.941359519958496,
+        5.932424068450928,
+        -6.088132381439209,
+        -6.021878719329834,
+        -5.960545539855957,
+        0.250286340713501,
+        0.2511691451072693,
+        0.251024067401886,
+        0.2485305219888687,
+        0.2514195442199707,
+        0.251468300819397,
+        0.2507806122303009,
+        0.25025123357772827
+      ]
+    },
+    {
+      "group": 0,
+      "binding": 1,
+      "kind": "uniform",
+      "access": "read",
+      "role": "uniform",
+      "type": "u32",
+      "length": 16,
+      "init": "fields",
+      "fields": [
+        {
+          "offset": 0,
+          "type": "u32",
+          "value": "width"
+        },
+        {
+          "offset": 4,
+          "type": "u32",
+          "value": "height"
+        },
+        {
+          "offset": 8,
+          "type": "u32",
+          "value": "channels"
+        },
+        {
+          "offset": 12,
+          "type": "u32",
+          "value": "batch"
+        },
+        {
+          "offset": 16,
+          "type": "u32",
+          "value": "groups"
+        },
+        {
+          "offset": 20,
+          "type": "f32",
+          "value": "epsilon"
+        },
+        {
+          "offset": 24,
+          "type": "u32",
+          "value": "row_stride"
+        },
+        {
+          "offset": 28,
+          "type": "u32",
+          "value": "col_stride"
+        },
+        {
+          "offset": 32,
+          "type": "u32",
+          "value": "channel_stride"
+        },
+        {
+          "offset": 36,
+          "type": "u32",
+          "value": "batch_stride"
+        },
+        {
+          "offset": 40,
+          "type": "u32",
+          "value": "output_row_stride"
+        },
+        {
+          "offset": 44,
+          "type": "u32",
+          "value": "output_col_stride"
+        },
+        {
+          "offset": 48,
+          "type": "u32",
+          "value": "output_channel_stride"
+        },
+        {
+          "offset": 52,
+          "type": "u32",
+          "value": "output_batch_stride"
+        }
+      ],
+      "readback": true
+    },
+    {
+      "group": 0,
+      "binding": 2,
+      "kind": "storage",
+      "access": "read_write",
+      "role": "output",
+      "type": "f32",
+      "length": "N",
+      "init": "zero",
+      "readback": true
+    }
+  ],
+  "dispatch": {
+    "mode": "explicit",
+    "workgroups": [
+      6,
+      1,
+      1
+    ]
+  },
+  "check": {
+    "mode": "group-norm",
+    "input": "0:0",
+    "output": "0:2",
+    "atol": 1e-05,
+    "rtol": 1e-05,
+    "outputLayout": {
+      "strides": [
+        "output_batch_stride",
+        "output_channel_stride",
+        "output_row_stride",
+        "output_col_stride"
+      ]
+    }
+  },
+  "constants": {
+    "WORKGROUP_SIZE": 4
+  },
+  "testData": {
+    "seed": 1592590464,
+    "algorithm": "Mulberry32; F32 rounding before comparison",
+    "groupSpans": [
+      [
+        0,
+        16
+      ],
+      [
+        16,
+        32
+      ],
+      [
+        32,
+        40
+      ],
+      [
+        40,
+        56
+      ],
+      [
+        56,
+        72
+      ],
+      [
+        72,
+        80
+      ]
+    ],
+    "distributions": [
+      "uniform [-2, 2)",
+      "uniform [10, 20)",
+      "normal mean -3, standard deviation 0.5",
+      "exponential scale 2, offset 5",
+      "equal mixture centered at -6/+6 with uniform jitter [-0.2,0.2)",
+      "normal mean 0.25, standard deviation 0.001"
+    ]
+  }
+}
