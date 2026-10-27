@@ -11,6 +11,10 @@ struct Params {
     // number of groups to do group norm over, NOT workgroup size!
     num_groups: u32,
     epsilon: f32,
+    row_stride: u32,
+    col_stride: u32,
+    channel_stride: u32,
+    batch_stride: u32,
 };
 
 // Input buffer: TODO change dtype
@@ -22,6 +26,21 @@ var<workgroup> partials: array<f32, WORKGROUP_SIZE>;
 // Mean 
 var<workgroup> mean: f32;
 var<workgroup> variance: f32;
+
+
+// MIlestone 12: strided inputs
+fn input_index(logical_position: u32, group_base: u32) -> u32 {
+    // Convert the logical position in the buffer to an index
+    // into the flattened input array.
+    let col: u32 = logical_position % params.width;
+    let row: u32 = (logical_position / params.width) % params.height;
+    let channel: u32 = (logical_position / params.width) / params.height;
+    return group_base 
+        + (row * params.row_stride) 
+        + (col * params.col_stride)
+        + (channel * params.channel_stride);
+}
+
 @compute @workgroup_size(WORKGROUP_SIZE)
 fn main(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
@@ -48,13 +67,13 @@ fn main(
     let last_channel = min(first_channel + channels_per_group, params.num_channels);
     
     let num_elems_per_group = (last_channel - first_channel) * params.width * params.height;
-    let batch_base = batch_index * params.width * params.height * params.num_channels;
-    let group_base = batch_base + first_channel * params.width * params.height;
+    let batch_base = batch_index * params.batch_stride;
+    let group_base = batch_base + first_channel * params.channel_stride;
 
     var partial_sum : f32 = 0.0f;
-    let starting_offset = group_base + lane; 
-    for (var i = starting_offset; i < group_base + num_elems_per_group; i += WORKGROUP_SIZE) {
-        partial_sum += input[i];
+    // let starting_offset = group_base + lane; 
+    for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
+        partial_sum += input[input_index(i, group_base)];
     }
     partials[lane] = partial_sum;
 
@@ -81,8 +100,9 @@ fn main(
     // Fifth milestone: Each thread sums (x - mean)^2 over same two elements it owns,
     // and writes that partial to debug output.
     var partial_sq_dev : f32 = 0.0f;
-    for (var i = starting_offset; i < group_base + num_elems_per_group; i += WORKGROUP_SIZE) {
-        partial_sq_dev += (input[i] - mean) * (input[i] - mean);
+    for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
+        partial_sq_dev += (input[input_index(i, group_base)] - mean) 
+            * (input[input_index(i, group_base)] - mean);
     }
     partials[lane] = partial_sq_dev;
 
@@ -108,9 +128,13 @@ fn main(
 
     // Seventh milestone: Write final group norm as y = (x-mean)/√(variance+ϵ).
     var group_norm : f32 = 0.0f;
-    for (var i = starting_offset; i < group_base + num_elems_per_group; i += WORKGROUP_SIZE) {
-        let x = input[i];
-        output[i] = (x - mean) / (sqrt(variance + params.epsilon));
+    for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
+        // Twelfth milestone: implement strides (i.e. for views)
+        let x = input[input_index(i, group_base)];
+        let output_group_base =
+            (batch_index * params.num_channels + first_channel)
+            * params.width * params.height;
+        output[output_group_base + i] = (x - mean) / (sqrt(variance + params.epsilon));
     }
 
 
