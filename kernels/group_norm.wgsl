@@ -20,7 +20,10 @@ struct Params {
     output_row_stride: u32,
     output_col_stride: u32,
     output_channel_stride: u32,
-    output_batch_stride: u32
+    output_batch_stride: u32,
+    // offsets
+    input_offset: u32,
+    output_offset: u32,
 };
 
 // Input buffer: TODO change dtype
@@ -83,7 +86,7 @@ fn main(
     let last_channel = min(first_channel + channels_per_group, params.num_channels);
     
     let num_elems_per_group = (last_channel - first_channel) * params.width * params.height;
-    let batch_base = batch_index * params.batch_stride;
+    let batch_base = params.input_offset + batch_index * params.batch_stride;
     let group_base = batch_base + first_channel * params.channel_stride;
 
     var partial_sum : f32 = 0.0f;
@@ -148,8 +151,8 @@ fn main(
         // Twelfth milestone: implement strides (i.e. for views)
         let x = input[input_index(i, group_base)];
         // find group index
-        let output_group_base =
-            batch_index * params.output_batch_stride
+        let output_group_base = params.output_offset
+            + batch_index * params.output_batch_stride
             + first_channel * params.output_channel_stride;
         output[output_index(i, output_group_base)] = (x - mean) / (sqrt(variance + params.epsilon));
     }
