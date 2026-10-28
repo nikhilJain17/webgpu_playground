@@ -1,5 +1,5 @@
 
-override WORKGROUP_SIZE: u32 = 4u; // num of threads in a workgroup
+// override WG_SIZE: u32 = 4u; // num of threads in a workgroup
 
 // Tenth milestone: Parameterize params.epsilon and group size
 // Eleventh milestone: parameterize based on what ggml will actually give us.
@@ -27,11 +27,16 @@ struct Params {
 };
 
 // Input buffer: TODO change dtype
-@group(0) @binding(0) var<storage, read> input : array<f32>;
+@group(0) @binding(0) var<storage, read_write> input : array<f32>;
+#ifdef INPLACE
 @group(0) @binding(1) var<uniform> params: Params;
-@group(0) @binding(2) var<storage, read_write> output : array<f32>;
+#else
+@group(0) @binding(1) var<storage, read_write> output : array<f32>;
+@group(0) @binding(2) var<uniform> params: Params;
+#endif
+
 // Scratchpad for partial sums, variances, etc
-var<workgroup> partials: array<f32, WORKGROUP_SIZE>;
+var<workgroup> partials: array<f32, WG_SIZE>;
 // Mean 
 var<workgroup> mean: f32;
 var<workgroup> variance: f32;
@@ -60,7 +65,7 @@ fn output_index(logical_position: u32, group_base: u32) -> u32 {
         + (channel * params.output_channel_stride);
 }
 
-@compute @workgroup_size(WORKGROUP_SIZE)
+@compute @workgroup_size(WG_SIZE)
 fn main(
     @builtin(workgroup_id) workgroup_id: vec3<u32>,
     @builtin(local_invocation_index) lane: u32,
@@ -73,7 +78,7 @@ fn main(
         // 2. Read its two assigned elements.
         // 3. Add them.
         // 4. Write its partial sum into a unique output slot.
-    // Third milestone: parameterize with WORKGROUP_SIZE and params.group_size
+    // Third milestone: parameterize with WG_SIZE and params.group_size
     // Eight milestone: allow workgroup sizes that don't exactly divide
     // the input size
 
@@ -101,7 +106,7 @@ fn main(
 
     var partial_sum : f32 = 0.0f;
     // let starting_offset = group_base + lane; 
-    for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
+    for (var i = lane; i < num_elems_per_group; i += WG_SIZE) {
         partial_sum += input[input_index(i, group_base)];
     }
     partials[lane] = partial_sum;
@@ -115,7 +120,7 @@ fn main(
     // and save the mean.
     if (lane == 0) {
         var total_sum : f32 = 0.0f;
-        for (var i: u32 = 0u; i < WORKGROUP_SIZE; i++) {
+        for (var i: u32 = 0u; i < WG_SIZE; i++) {
             total_sum += partials[i];
         }
         mean = total_sum / f32(num_elems_per_group); 
@@ -129,7 +134,7 @@ fn main(
     // Fifth milestone: Each thread sums (x - mean)^2 over same two elements it owns,
     // and writes that partial to debug output.
     var partial_sq_dev : f32 = 0.0f;
-    for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
+    for (var i = lane; i < num_elems_per_group; i += WG_SIZE) {
         partial_sq_dev += (input[input_index(i, group_base)] - mean) 
             * (input[input_index(i, group_base)] - mean);
     }
@@ -144,7 +149,7 @@ fn main(
     // and dividing by group size.
     if (lane == 0) {
         var total_sum : f32 = 0.0f;
-        for (var i = 0u; i < WORKGROUP_SIZE; i++) {
+        for (var i = 0u; i < WG_SIZE; i++) {
             total_sum += partials[i];
         }
         variance = total_sum / f32(num_elems_per_group);
@@ -157,14 +162,18 @@ fn main(
 
     // Seventh milestone: Write final group norm as y = (x-mean)/√(variance+ϵ).
     var group_norm : f32 = 0.0f;
-    for (var i = lane; i < num_elems_per_group; i += WORKGROUP_SIZE) {
+    for (var i = lane; i < num_elems_per_group; i += WG_SIZE) {
         // Twelfth milestone: implement strides (i.e. for views)
         let x = input[input_index(i, group_base)];
         // find group index
         let output_group_base = params.output_offset
             + batch_index * params.output_batch_stride
             + first_channel * params.output_channel_stride;
+#ifdef INPLACE
+        input[input_index(i, group_base)] = (x - mean) / (sqrt(variance + params.epsilon));
+#else
         output[output_index(i, output_group_base)] = (x - mean) / (sqrt(variance + params.epsilon));
+#endif
     }
 
 
