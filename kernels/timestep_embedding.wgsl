@@ -19,7 +19,6 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     let H: u32 = params.dim / 2;
 
-    // TODO: Guard extra invocations, calculate n and j, and write the embedding.
     if (global_thread_index >= num_timesteps * H) { return; }
 
     let timestep_index: u32 = global_thread_index / H;
@@ -30,4 +29,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     output[timestep_index * params.dim + frequency_index] = cos(angle);
     output[timestep_index * params.dim + frequency_index + H] = sin(angle);
+
+    // For odd dims, we zero out the last output via the first thread of each timestep block, 
+    // since we expect cos(x) sin(x) pairs for each frequency.
+    if (params.dim % 2 == 1 && frequency_index == 0) {
+        output[timestep_index * params.dim + (params.dim - 1)] = 0;
+    }
+
 }
